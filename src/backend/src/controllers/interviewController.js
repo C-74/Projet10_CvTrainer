@@ -1,7 +1,28 @@
+import { createInterview, getInterviewById } from '../models/interviewModel.js'
+
 // Créer un nouvel entretien
 export async function create(req, res) {
-  // TODO: sauvegarder le CV et la description de poste
-  res.status(201).json({ message: 'Entretien créé' })
+  try {
+    const jobDescription = req.body.jobDescription
+    const cvFilename = req.file?.originalname || null
+
+    if (!jobDescription) {
+      return res.status(400).json({ error: 'La description du poste est requise.' })
+    }
+
+    const result = createInterview({
+      cvText: '',  // Sera rempli par l'extraction PDF (OCR) plus tard
+      cvFilename,
+      jobDescription,
+      timerEnabled: false
+    })
+
+    const interview = getInterviewById(result.lastInsertRowid)
+    res.status(201).json(interview)
+  } catch (error) {
+    console.error('Erreur création entretien:', error)
+    res.status(500).json({ error: 'Erreur lors de la création de l\'entretien.' })
+  }
 }
 
 // Générer les questions via l'IA
