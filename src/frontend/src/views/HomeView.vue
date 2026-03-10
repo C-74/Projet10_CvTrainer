@@ -159,7 +159,8 @@ async function handleSubmit() {
     store.startInterview({
       id: data.id,
       jobDescription: jobDescription.value,
-      cvFilename: cvFile.value.name
+      cvFilename: cvFile.value.name,
+      cvData: data.cv_data || null
     })
 
     router.push({ name: 'interview', params: { id: data.id } })

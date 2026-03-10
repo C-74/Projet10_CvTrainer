@@ -5,6 +5,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS interviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cv_text TEXT NOT NULL,
+    cv_data TEXT,
     cv_filename TEXT,
     job_description TEXT NOT NULL,
     timer_enabled INTEGER DEFAULT 0,

@@ -1,23 +1,43 @@
-import { createInterview, getInterviewById } from '../models/interviewModel.js'
+import { createInterview, getInterviewById, updateCvData } from '../models/interviewModel.js'
+import { extractCvData } from '../services/cvExtractorService.js'
+import path from 'path'
 
 // Créer un nouvel entretien
 export async function create(req, res) {
   try {
     const jobDescription = req.body.jobDescription
     const cvFilename = req.file?.originalname || null
+    const cvPath = req.file?.path || null
 
     if (!jobDescription) {
       return res.status(400).json({ error: 'La description du poste est requise.' })
     }
+    if (!cvPath) {
+      return res.status(400).json({ error: 'Un CV au format PDF est requis.' })
+    }
 
+    // 1. Créer l'entretien en BDD (avec texte vide pour l'instant)
     const result = createInterview({
-      cvText: '',  // Sera rempli par l'extraction PDF (OCR) plus tard
+      cvText: '',
       cvFilename,
       jobDescription,
       timerEnabled: false
     })
+    const interviewId = result.lastInsertRowid
 
-    const interview = getInterviewById(result.lastInsertRowid)
+    // 2. Extraire et structurer les données du CV
+    try {
+      const { rawText, structured } = await extractCvData(cvPath)
+      updateCvData(interviewId, { cvText: rawText, cvData: structured })
+    } catch (extractError) {
+      console.error('Erreur extraction CV (entretien créé sans données CV):', extractError)
+    }
+
+    const interview = getInterviewById(interviewId)
+    // Parser cv_data pour le renvoyer en objet
+    if (interview.cv_data) {
+      interview.cv_data = JSON.parse(interview.cv_data)
+    }
     res.status(201).json(interview)
   } catch (error) {
     console.error('Erreur création entretien:', error)

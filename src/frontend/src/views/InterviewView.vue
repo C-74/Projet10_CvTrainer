@@ -94,9 +94,9 @@
     </section>
 
     <!-- ============ PANNEAU DROIT : Infos CV + Offre ============ -->
-    <aside class="w-80 flex-shrink-0 bg-white border-l border-gray-200 flex flex-col">
+    <aside class="w-80 flex-shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
       <!-- Description de l'offre -->
-      <div class="border-b border-gray-200 flex flex-col" style="max-height: 50%">
+      <div class="border-b border-gray-200 flex flex-col" style="max-height: 40%">
         <div class="px-4 py-3 border-b border-gray-100 flex-shrink-0">
           <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Description de l'offre</h2>
         </div>
@@ -113,20 +113,93 @@
           <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Aperçu du CV</h2>
         </div>
         <div class="flex-1 overflow-y-auto p-4">
-          <div v-if="store.currentInterview?.cvFilename" class="space-y-3">
+          <!-- Données extraites du CV -->
+          <div v-if="cvData" class="space-y-4">
+
+            <!-- Identité -->
+            <div v-if="cvData.identite">
+              <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Identité</h3>
+              <p class="text-sm font-semibold text-gray-900">{{ cvData.identite.prenom }} {{ cvData.identite.nom }}</p>
+              <p v-if="cvData.identite.titre" class="text-xs text-gray-500">{{ cvData.identite.titre }}</p>
+              <div class="mt-1 space-y-0.5 text-xs text-gray-500">
+                <p v-if="cvData.identite.email">{{ cvData.identite.email }}</p>
+                <p v-if="cvData.identite.telephone">{{ cvData.identite.telephone }}</p>
+                <p v-if="cvData.identite.adresse">{{ cvData.identite.adresse }}</p>
+                <p v-if="cvData.identite.permis">Permis : {{ cvData.identite.permis }}</p>
+              </div>
+              <p v-if="cvData.identite.profil" class="mt-1 text-xs text-gray-600 italic leading-relaxed">{{ cvData.identite.profil }}</p>
+            </div>
+
+            <hr class="border-gray-100" />
+
+            <!-- Formations -->
+            <div v-if="cvData.formations?.length">
+              <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Formations</h3>
+              <div v-for="(f, i) in cvData.formations" :key="i" class="mb-2">
+                <p class="text-xs font-semibold text-gray-800">{{ f.diplome }}</p>
+                <p class="text-xs text-gray-500">{{ f.etablissement }}</p>
+                <p class="text-xs text-gray-400">{{ f.periode }}</p>
+              </div>
+            </div>
+
+            <hr class="border-gray-100" />
+
+            <!-- Expériences -->
+            <div v-if="cvData.experiences?.length">
+              <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Expériences</h3>
+              <div v-for="(e, i) in cvData.experiences" :key="i" class="mb-2">
+                <p class="text-xs font-semibold text-gray-800">{{ e.poste }}</p>
+                <p class="text-xs text-gray-500">{{ e.entreprise }} — {{ e.periode }}</p>
+                <ul v-if="e.missions?.length" class="mt-0.5 list-disc list-inside text-xs text-gray-500">
+                  <li v-for="(m, j) in e.missions" :key="j">{{ m }}</li>
+                </ul>
+              </div>
+            </div>
+
+            <hr class="border-gray-100" />
+
+            <!-- Compétences -->
+            <div v-if="cvData.competences">
+              <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Compétences</h3>
+              <div v-if="cvData.competences.informatique?.length" class="mb-1">
+                <p class="text-xs font-medium text-gray-700">Informatique</p>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                  <span v-for="(c, i) in cvData.competences.informatique" :key="i" class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{{ c }}</span>
+                </div>
+              </div>
+              <div v-if="cvData.competences.langues?.length" class="mb-1">
+                <p class="text-xs font-medium text-gray-700">Langues</p>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                  <span v-for="(l, i) in cvData.competences.langues" :key="i" class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{{ l.langue }} ({{ l.niveau }})</span>
+                </div>
+              </div>
+            </div>
+
+            <hr class="border-gray-100" />
+
+            <!-- Centres d'intérêt -->
+            <div v-if="cvData.centresInteret?.length">
+              <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Centres d'intérêt</h3>
+              <div class="flex flex-wrap gap-1">
+                <span v-for="(ci, i) in cvData.centresInteret" :key="i" class="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">{{ ci }}</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Pas de données CV -->
+          <div v-else-if="store.currentInterview?.cvFilename" class="space-y-3">
             <div class="flex items-center space-x-2 text-sm text-gray-600">
               <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span class="truncate">{{ store.currentInterview.cvFilename }}</span>
             </div>
-            <!-- Aperçu du contenu extrait du CV (sera rempli quand l'OCR sera en place) -->
             <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-              <p class="text-xs text-gray-400 italic">
-                L'aperçu du contenu sera disponible après extraction du PDF.
-              </p>
+              <p class="text-xs text-gray-400 italic">Extraction des données en cours...</p>
             </div>
           </div>
+
           <p v-else class="text-sm text-gray-400 italic">Aucun CV chargé</p>
         </div>
       </div>
@@ -136,13 +209,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useInterviewStore } from '../stores/interviewStore.js'
 import apiClient from '../services/api.js'
 
 const route = useRoute()
 const store = useInterviewStore()
+
+const cvData = computed(() => store.currentInterview?.cvData || null)
 
 const messages = ref([])
 const userInput = ref('')

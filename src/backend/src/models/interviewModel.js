@@ -19,3 +19,9 @@ export function getAllInterviews() {
 export function updateInterviewStatus(id, status) {
   return db.prepare('UPDATE interviews SET status = ?, updated_at = datetime(\'now\') WHERE id = ?').run(status, id)
 }
+
+export function updateCvData(id, { cvText, cvData }) {
+  return db.prepare(`
+    UPDATE interviews SET cv_text = ?, cv_data = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(cvText, JSON.stringify(cvData), id)
+}
