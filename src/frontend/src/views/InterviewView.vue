@@ -51,23 +51,145 @@
 
     <!-- ============ PANNEAU CENTRAL : Chat ============ -->
     <section class="flex-1 flex flex-col min-w-0">
+
+      <!-- Barre de progression -->
+      <div class="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-medium text-gray-500">Progression de l'entretien</span>
+          <span class="text-xs font-semibold" :class="isInterviewFinished ? 'text-green-600' : 'text-indigo-600'">
+            {{ isInterviewFinished ? 'Terminé' : `Question ${questionsAnswered} / ~${estimatedTotal}` }}
+          </span>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-2">
+          <div
+            class="h-2 rounded-full transition-all duration-700 ease-out"
+            :class="isInterviewFinished ? 'bg-green-500' : 'bg-indigo-500'"
+            :style="{ width: progress + '%' }"
+          ></div>
+        </div>
+      </div>
+
       <!-- Messages -->
       <div ref="chatContainer" class="flex-1 overflow-y-auto p-6 space-y-4">
-        <div
-          v-for="(msg, index) in messages"
-          :key="index"
-          class="flex"
-          :class="msg.role === 'assistant' ? 'justify-start' : 'justify-end'"
-        >
-          <div
-            class="max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed"
-            :class="msg.role === 'assistant'
-              ? 'bg-white border border-gray-200 text-gray-800'
-              : 'bg-indigo-600 text-white'"
-          >
-            <p class="whitespace-pre-wrap">{{ msg.content }}</p>
+
+        <template v-for="(msg, index) in processedMessages" :key="index">
+          <!-- Message utilisateur -->
+          <div v-if="msg.type === 'user'" class="flex justify-end">
+            <div class="max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed bg-indigo-600 text-white">
+              <p class="whitespace-pre-wrap">{{ msg.content }}</p>
+            </div>
           </div>
-        </div>
+
+          <!-- Message assistant simple -->
+          <div v-else-if="msg.type === 'assistant'" class="flex justify-start">
+            <div class="max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed bg-white border border-gray-200 text-gray-800">
+              <p class="whitespace-pre-wrap">{{ msg.content }}</p>
+            </div>
+          </div>
+
+          <!-- Message assistant avec feedback -->
+          <div v-else-if="msg.type === 'with-feedback'" class="flex justify-start">
+            <div class="max-w-[75%] space-y-2">
+              <button
+                @click="toggleFeedback(index)"
+                class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg transition"
+                :class="visibleFeedbacks.has(index)
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  : 'bg-gray-100 text-gray-500 hover:bg-amber-50 hover:text-amber-600'"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                {{ visibleFeedbacks.has(index) ? 'Masquer le feedback' : 'Voir le feedback' }}
+              </button>
+              <div v-if="visibleFeedbacks.has(index)" class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 leading-relaxed">
+                <p class="whitespace-pre-wrap">{{ msg.feedback }}</p>
+              </div>
+              <div class="rounded-2xl px-4 py-3 text-sm leading-relaxed bg-white border border-gray-200 text-gray-800">
+                <p class="whitespace-pre-wrap">{{ msg.question }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bilan structuré -->
+          <div v-else-if="msg.type === 'bilan'" class="w-full space-y-4">
+            <!-- Bilan JSON parsé -->
+            <div v-if="msg.bilanData" class="bg-gradient-to-br from-indigo-50 via-white to-indigo-50 rounded-2xl border border-indigo-200 shadow-sm p-6 space-y-5">
+              <!-- Header + Score -->
+              <div class="text-center">
+                <h3 class="text-lg font-bold text-gray-900 mb-3">Bilan de l'entretien</h3>
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full border-4"
+                  :class="msg.bilanData.score >= 7 ? 'bg-green-50 border-green-400' : msg.bilanData.score >= 5 ? 'bg-amber-50 border-amber-400' : 'bg-red-50 border-red-400'">
+                  <span class="text-2xl font-bold" :class="msg.bilanData.score >= 7 ? 'text-green-700' : msg.bilanData.score >= 5 ? 'text-amber-700' : 'text-red-700'">
+                    {{ msg.bilanData.score }}<span class="text-sm opacity-60">/{{ msg.bilanData.maxScore || 10 }}</span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Points forts / À améliorer -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="bg-green-50 rounded-xl p-4 border border-green-100">
+                  <h4 class="text-sm font-bold text-green-700 mb-2 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                    Points forts
+                  </h4>
+                  <ul class="space-y-1.5">
+                    <li v-for="(p, pi) in msg.bilanData.pointsForts" :key="pi" class="text-sm text-green-800 flex items-start gap-1.5">
+                      <span class="text-green-400 mt-0.5 flex-shrink-0">•</span><span>{{ p }}</span>
+                    </li>
+                  </ul>
+                </div>
+                <div class="bg-orange-50 rounded-xl p-4 border border-orange-100">
+                  <h4 class="text-sm font-bold text-orange-700 mb-2 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    Points à améliorer
+                  </h4>
+                  <ul class="space-y-1.5">
+                    <li v-for="(p, pi) in msg.bilanData.pointsAAmeliorer" :key="pi" class="text-sm text-orange-800 flex items-start gap-1.5">
+                      <span class="text-orange-400 mt-0.5 flex-shrink-0">•</span><span>{{ p }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Conseil général -->
+              <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <h4 class="text-sm font-bold text-blue-700 mb-2 flex items-center gap-1.5">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                  Conseil général
+                </h4>
+                <p class="text-sm text-blue-800 leading-relaxed">{{ msg.bilanData.conseilGeneral }}</p>
+              </div>
+
+              <!-- Réponses suggérées -->
+              <div v-if="msg.bilanData.reponsesSuggerees?.length">
+                <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  Réponses suggérées
+                </h4>
+                <div class="space-y-3">
+                  <div v-for="(r, ri) in msg.bilanData.reponsesSuggerees" :key="ri" class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                    <p class="text-sm font-medium text-gray-900 mb-1">{{ ri + 1 }}. « {{ r.question }} »</p>
+                    <p class="text-sm text-gray-600 italic ml-4">→ {{ r.reponseIdeale }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fallback : bilan brut si JSON invalide -->
+            <div v-else class="bg-white border border-gray-200 rounded-2xl px-5 py-4 text-sm leading-relaxed text-gray-800">
+              <h3 class="font-bold text-gray-900 mb-2">Bilan de l'entretien</h3>
+              <p class="whitespace-pre-wrap">{{ msg.bilanRaw }}</p>
+            </div>
+
+            <!-- Message de clôture -->
+            <div v-if="msg.closingMessage" class="flex justify-start">
+              <div class="max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed bg-white border border-gray-200 text-gray-800">
+                <p class="whitespace-pre-wrap">{{ msg.closingMessage }}</p>
+              </div>
+            </div>
+          </div>
+        </template>
 
         <!-- Indicateur de chargement IA -->
         <div v-if="isAiTyping" class="flex justify-start">
@@ -81,8 +203,8 @@
         </div>
       </div>
 
-      <!-- Zone de saisie -->
-      <div class="border-t border-gray-200 bg-white p-4">
+      <!-- Zone de saisie (masquée quand l'entretien est terminé) -->
+      <div v-if="!isInterviewFinished" class="border-t border-gray-200 bg-white p-4">
         <form @submit.prevent="sendMessage" class="flex items-end gap-3">
           <textarea
             v-model="userInput"
@@ -239,6 +361,50 @@ const isAiTyping = ref(false)
 const history = ref([])
 const chatContainer = ref(null)
 const inputField = ref(null)
+const visibleFeedbacks = ref(new Set())
+const estimatedTotal = 6
+
+const isInterviewFinished = computed(() => {
+  return messages.value.some(m => m.content.includes('---FIN_BILAN---'))
+})
+
+const questionsAnswered = computed(() => messages.value.filter(m => m.role === 'user').length)
+
+const progress = computed(() => {
+  if (isInterviewFinished.value) return 100
+  if (questionsAnswered.value === 0) return 5
+  return Math.min(95, Math.round((questionsAnswered.value / estimatedTotal) * 100))
+})
+
+const processedMessages = computed(() => {
+  return messages.value.map((msg) => {
+    if (msg.role === 'user') return { ...msg, type: 'user' }
+
+    const bilanMatch = msg.content.match(/---BILAN---([\s\S]*?)---FIN_BILAN---/)
+    if (bilanMatch) {
+      let bilanData = null
+      try { bilanData = JSON.parse(bilanMatch[1].trim()) } catch {}
+      const closingMessage = msg.content.split('---FIN_BILAN---')[1]?.trim() || ''
+      return { ...msg, type: 'bilan', bilanData, bilanRaw: bilanMatch[1].trim(), closingMessage }
+    }
+
+    const feedbackMatch = msg.content.match(/\[FEEDBACK\]([\s\S]*?)\[\/FEEDBACK\]/)
+    if (feedbackMatch) {
+      const feedback = feedbackMatch[1].trim()
+      const question = msg.content.replace(/\[FEEDBACK\][\s\S]*?\[\/FEEDBACK\]/, '').trim()
+      return { ...msg, type: 'with-feedback', feedback, question }
+    }
+
+    return { ...msg, type: 'assistant' }
+  })
+})
+
+function toggleFeedback(index) {
+  const newSet = new Set(visibleFeedbacks.value)
+  if (newSet.has(index)) newSet.delete(index)
+  else newSet.add(index)
+  visibleFeedbacks.value = newSet
+}
 
 onMounted(async () => {
   // Charger l'historique
