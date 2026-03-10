@@ -5,6 +5,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS interviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cv_text TEXT NOT NULL,
+    cv_data TEXT,
     cv_filename TEXT,
     job_description TEXT NOT NULL,
     timer_enabled INTEGER DEFAULT 0,
@@ -40,6 +41,15 @@ db.exec(`
     global_feedback TEXT,
     improvement_tips TEXT,
     overall_score INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
   );

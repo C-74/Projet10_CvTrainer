@@ -7,6 +7,12 @@ export const useInterviewStore = defineStore('interview', () => {
   const answers = ref([])
   const isTimerEnabled = ref(false)
 
+  function startInterview({ id, jobDescription, cvFilename, cvData }) {
+    currentInterview.value = { id, jobDescription, cvFilename, cvData: cvData || null }
+    questions.value = []
+    answers.value = []
+  }
+
   function reset() {
     currentInterview.value = null
     questions.value = []
@@ -19,6 +25,7 @@ export const useInterviewStore = defineStore('interview', () => {
     questions,
     answers,
     isTimerEnabled,
+    startInterview,
     reset
   }
 })

@@ -7,6 +7,12 @@ const router = Router()
 // Créer un entretien (upload CV + description de poste)
 router.post('/', upload.single('cv'), interviewController.create)
 
+// Chat avec l'IA
+router.post('/:id/chat', interviewController.chat)
+
+// Récupérer les messages d'un entretien
+router.get('/:id/messages', interviewController.getMessages)
+
 // Générer les questions IA
 router.post('/:id/questions', interviewController.generateQuestions)
 
