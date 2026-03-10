@@ -57,3 +57,16 @@ Problème : Après l'upload, la conversation ne se lance pas (problème au Front
 Solution : Je lui ai fourni une capture d'écran de l'érreur, et la conversation marche bien désormais.
 
 Résultat : Il me pose des questions et réponds bien aux miennes avec des feedbacks.
+
+Apprentissage : L'utilisation d'un spec.md pour placer les users story's est intéréssant car cela permet de liberer de la place au niveau du prompt
+
+---
+
+Session 5 — Objectif : Amélioration du Front-End et de l'affichage
+
+Prompt : "C'est super bien, maintenant je voudrais améliorer l'esthethisme :
+
+- Deja quand l'entretien est terminé, fait disparaitre la barre de réponse en bas.
+- Pour le feedback, au lieu d'un message, fait apparaitre un bloc qui prend toute la largeur qui fait un vrai feedback avec une mise en forme (struturation JSON ?) au lieu d'un simple message.
+- Pour les petits feedbacks peandant la conversation, ça serai bien de séparer avec les conversations (un petit bouton pour faire aparaitre et disparaitre le feedback)
+- Aussi ça serai bien que en haut de la page, j'ai une barre de progression de l'entretien"
