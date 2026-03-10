@@ -44,6 +44,15 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+  );
 `)
 
 console.log('Migration terminée avec succès.')

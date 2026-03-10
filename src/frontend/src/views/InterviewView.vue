@@ -10,8 +10,15 @@
         <!-- Entretien actif -->
         <div
           v-if="store.currentInterview"
-          class="p-3 rounded-lg bg-indigo-50 border border-indigo-200"
+          class="group relative p-3 rounded-lg bg-indigo-50 border border-indigo-200"
         >
+          <button
+            @click.stop="deleteInterview(store.currentInterview.id, true)"
+            class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-indigo-200 text-indigo-400 hover:text-indigo-700"
+            title="Supprimer"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
           <p class="text-xs font-semibold text-indigo-600 mb-1">En cours</p>
           <p class="text-sm font-medium text-gray-900 truncate">{{ store.currentInterview.cvFilename }}</p>
           <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ store.currentInterview.jobDescription }}</p>
@@ -21,9 +28,16 @@
         <div
           v-for="item in history"
           :key="item.id"
-          class="p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition border border-transparent hover:border-gray-200"
+          class="group relative p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition border border-transparent hover:border-gray-200"
           @click="loadFromHistory(item)"
         >
+          <button
+            @click.stop="deleteInterview(item.id)"
+            class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-red-600"
+            title="Supprimer"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
           <p class="text-sm font-medium text-gray-800 truncate">{{ item.cv_filename || 'CV sans nom' }}</p>
           <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ item.job_description }}</p>
           <p class="text-xs text-gray-400 mt-1">{{ formatDate(item.created_at) }}</p>
@@ -227,18 +241,35 @@ const chatContainer = ref(null)
 const inputField = ref(null)
 
 onMounted(async () => {
-  // Message d'accueil de l'IA
-  messages.value.push({
-    role: 'assistant',
-    content: 'Bonjour ! Je suis votre recruteur pour cet entretien de simulation. J\'ai bien reçu votre CV et la description du poste. Je vais vous poser quelques questions. Prêt(e) à commencer ?'
-  })
-
   // Charger l'historique
   try {
     const { data } = await apiClient.get('/history')
     history.value = data.interviews || []
   } catch {
     // L'historique sera vide
+  }
+
+  // Démarrer l'entretien IA si on a un entretien en cours
+  if (store.currentInterview?.id) {
+    // Vérifier s'il y a déjà des messages sauvegardés
+    try {
+      const { data } = await apiClient.get(`/interviews/${store.currentInterview.id}/messages`)
+      if (data.messages?.length > 0) {
+        messages.value = data.messages
+      } else {
+        // Premier lancement : demander à l'IA de démarrer
+        isAiTyping.value = true
+        const { data: chatData } = await apiClient.post(`/interviews/${store.currentInterview.id}/chat`, {})
+        messages.value.push({ role: chatData.role, content: chatData.content })
+        isAiTyping.value = false
+      }
+    } catch {
+      isAiTyping.value = false
+      messages.value.push({
+        role: 'assistant',
+        content: 'Bonjour ! Je suis prêt à commencer l\'entretien. Dites-moi quand vous êtes prêt(e).'
+      })
+    }
   }
 })
 
@@ -271,13 +302,8 @@ async function sendMessage() {
   isAiTyping.value = true
 
   try {
-    // TODO: appeler le backend pour obtenir la réponse IA
-    // Simulation temporaire
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    messages.value.push({
-      role: 'assistant',
-      content: 'Merci pour cette réponse. Voici ma prochaine question...'
-    })
+    const { data } = await apiClient.post(`/interviews/${store.currentInterview.id}/chat`, { message: text })
+    messages.value.push({ role: data.role, content: data.content })
   } catch (error) {
     messages.value.push({
       role: 'assistant',
@@ -285,6 +311,18 @@ async function sendMessage() {
     })
   } finally {
     isAiTyping.value = false
+  }
+}
+
+async function deleteInterview(id, isCurrent = false) {
+  try {
+    await apiClient.delete(`/history/${id}`)
+    if (isCurrent) {
+      store.reset()
+    }
+    history.value = history.value.filter(h => h.id !== id)
+  } catch (error) {
+    console.error('Erreur suppression:', error)
   }
 }
 

@@ -9,4 +9,7 @@ router.get('/', historyController.list)
 // Récupérer un entretien passé
 router.get('/:id', historyController.getById)
 
+// Supprimer un entretien
+router.delete('/:id', historyController.remove)
+
 export default router

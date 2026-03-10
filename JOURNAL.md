@@ -38,10 +38,22 @@ Solution : Je suis allé sur la documentation de pdfparse, et j'ai corrigé l'im
 
 Problème bis : L'extraction de CV marche très bien sur mon CV personnel. Mais ne marche pas parfaitement sur d'autre CV (champs manquants, informations qui ne vont pas dans certains endroits).
 
-Solution bis : Passer par un Agent IA, je pense que ça sera mieux car avec les nouveaux CV, c'est extrêmement dur d'extraire les informations comment c'est différent à chaque fois.
+Solution bis : Passer par un Agent IA, je pense que ça sera mieux car avec les nouveaux CV, c'est extrêmement dur d'extraire les informations comme c'est différent à chaque fois.
 
 Résultat : N'importe quel CV s'affiche très bien sur le navigateur
+
+Apprentissage : Il est mieux conseillé d'utiliser l'IA pour extraire des données d'un PDF, surtout dans ces années là où les PDF sont crées sur Canva et sont donc désoordonés. Extraire manuellement à l'aide de Regex est un cauchemard comme chaque CV sont différents.
 
 ---
 
 Session 4 — Objectif : Simulation d'entretien + feedback
+
+Prompt : "Ok, maintenant qu'on a tout, tu peux regarder le fichier spec.md et faire les user stories concernant la conversation, tu as noramlement toute les informations.
+
+D'ailleurs avant ça, clean la BDD avec les upload comme ça ça fait propre. Et en plus fait en sorte de mettre une croix des conversations a gauche de l'écran, comme ça on peut delete facilement"
+
+Problème : Après l'upload, la conversation ne se lance pas (problème au FrontEnd)
+
+Solution : Je lui ai fourni une capture d'écran de l'érreur, et la conversation marche bien désormais.
+
+Résultat : Il me pose des questions et réponds bien aux miennes avec des feedbacks.
