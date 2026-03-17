@@ -9,8 +9,8 @@ node_modules/
 *.db-wal
 *.db-shm
 
-# Uploads
-backend/uploads/*
+# Uploads — ignorer le contenu mais garder le dossier vide
+backend/uploads/**
 !backend/uploads/.gitkeep
 
 # Build

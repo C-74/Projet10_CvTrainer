@@ -32,7 +32,7 @@
     </aside>
 
     <!-- ============ PANNEAU DROIT : Formulaire ============ -->
-    <div class="flex-1 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="flex-1 flex items-start justify-center p-4 py-8 overflow-y-auto">
       <div class="w-full max-w-2xl">
         <!-- Titre -->
         <div class="text-center mb-10">
