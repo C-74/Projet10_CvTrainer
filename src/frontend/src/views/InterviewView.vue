@@ -26,7 +26,7 @@
 
         <!-- Anciens entretiens -->
         <div
-          v-for="item in history"
+          v-for="item in filteredHistory"
           :key="item.id"
           class="group relative p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition border border-transparent hover:border-gray-200"
           @click="loadFromHistory(item)"
@@ -43,27 +43,40 @@
           <p class="text-xs text-gray-400 mt-1">{{ formatDate(item.created_at) }}</p>
         </div>
 
-        <p v-if="history.length === 0" class="text-xs text-gray-400 text-center py-4">
+        <p v-if="filteredHistory.length === 0" class="text-xs text-gray-400 text-center py-4">
           Aucun historique pour le moment
         </p>
       </div>
     </aside>
 
     <!-- ============ PANNEAU CENTRAL : Chat ============ -->
-    <section class="flex-1 flex flex-col min-w-0">
+    <section class="flex-1 flex flex-col min-w-0" :class="{ 'timer-danger-glow': isTimerDanger && !isInterviewFinished }">
 
       <!-- Barre de progression -->
       <div class="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-xs font-medium text-gray-500">Progression de l'entretien</span>
-          <span class="text-xs font-semibold" :class="isInterviewFinished ? 'text-green-600' : 'text-indigo-600'">
-            {{ isInterviewFinished ? 'Terminé' : `Question ${questionsAnswered} / ~${estimatedTotal}` }}
-          </span>
+          <div class="flex items-center gap-3">
+            <!-- Timer countdown -->
+            <span
+              v-if="store.isTimerEnabled && !isInterviewFinished"
+              class="text-xs font-mono font-bold px-2 py-0.5 rounded-md transition-colors"
+              :class="isTimerDanger ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-gray-100 text-gray-700'"
+            >
+              ⏱ {{ formatTime(remainingTime) }}
+            </span>
+            <span v-else-if="store.isTimerEnabled && isInterviewFinished" class="text-xs font-medium text-gray-400">
+              ⏱ Terminé
+            </span>
+            <span class="text-xs font-semibold" :class="isInterviewFinished ? 'text-green-600' : 'text-indigo-600'">
+              {{ isInterviewFinished ? 'Terminé' : `Question ${questionsAnswered} / ~${estimatedTotal}` }}
+            </span>
+          </div>
         </div>
         <div class="w-full bg-gray-100 rounded-full h-2">
           <div
             class="h-2 rounded-full transition-all duration-700 ease-out"
-            :class="isInterviewFinished ? 'bg-green-500' : 'bg-indigo-500'"
+            :class="isInterviewFinished ? 'bg-green-500' : isTimerDanger ? 'bg-red-500' : 'bg-indigo-500'"
             :style="{ width: progress + '%' }"
           ></div>
         </div>
@@ -203,8 +216,8 @@
         </div>
       </div>
 
-      <!-- Zone de saisie (masquée quand l'entretien est terminé) -->
-      <div v-if="!isInterviewFinished" class="border-t border-gray-200 bg-white p-4">
+      <!-- Zone de saisie (masquée quand l'entretien est terminé ou timer écoulé) -->
+      <div v-if="!isInterviewFinished && !timerExpired" class="border-t border-gray-200 bg-white p-4">
         <form @submit.prevent="sendMessage" class="flex items-end gap-3">
           <textarea
             v-model="userInput"
@@ -345,12 +358,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useInterviewStore } from '../stores/interviewStore.js'
 import apiClient from '../services/api.js'
 
 const route = useRoute()
+const router = useRouter()
 const store = useInterviewStore()
 
 const cvData = computed(() => store.currentInterview?.cvData || null)
@@ -363,6 +377,69 @@ const chatContainer = ref(null)
 const inputField = ref(null)
 const visibleFeedbacks = ref(new Set())
 const estimatedTotal = 6
+
+// Timer
+const remainingTime = ref(store.timerRemaining || 0)
+let timerInterval = null
+const isTimerDanger = computed(() => store.isTimerEnabled && remainingTime.value > 0 && remainingTime.value <= 60)
+const timerExpired = ref(false)
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function startTimer() {
+  if (!store.isTimerEnabled || remainingTime.value <= 0) return
+  stopTimer()
+  timerInterval = setInterval(() => {
+    if (remainingTime.value > 0) {
+      remainingTime.value--
+      store.saveTimerRemaining(remainingTime.value)
+      if (remainingTime.value === 0) {
+        stopTimer()
+        handleTimerEnd()
+      }
+    }
+  }, 1000)
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
+async function handleTimerEnd() {
+  if (isInterviewFinished.value) return
+  timerExpired.value = true
+  isAiTyping.value = true
+  try {
+    const { data } = await apiClient.post(`/interviews/${store.currentInterview.id}/end`)
+    messages.value.push({ role: data.role, content: data.content })
+  } catch (error) {
+    messages.value.push({
+      role: 'assistant',
+      content: 'Le temps est écoulé. Désolé, une erreur est survenue lors de la génération du bilan.'
+    })
+  } finally {
+    isAiTyping.value = false
+  }
+}
+
+onUnmounted(() => {
+  stopTimer()
+  if (store.isTimerEnabled) {
+    store.saveTimerRemaining(remainingTime.value)
+  }
+})
+
+const filteredHistory = computed(() => {
+  const currentId = store.currentInterview?.id
+  return history.value.filter(h => h.id !== currentId)
+})
 
 const isInterviewFinished = computed(() => {
   return messages.value.some(m => m.content.includes('---FIN_BILAN---'))
@@ -437,6 +514,12 @@ onMounted(async () => {
       })
     }
   }
+
+  // Démarrer le timer si actif et entretien pas terminé
+  if (store.isTimerEnabled && !isInterviewFinished.value) {
+    remainingTime.value = store.timerRemaining || store.timerDuration
+    startTimer()
+  }
 })
 
 // Auto-scroll vers le bas à chaque nouveau message
@@ -446,6 +529,11 @@ watch(messages, async () => {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight
   }
 }, { deep: true })
+
+// Arrêter le timer si l'entretien est terminé
+watch(isInterviewFinished, (finished) => {
+  if (finished) stopTimer()
+})
 
 function autoResize(event) {
   const el = event.target
@@ -492,8 +580,23 @@ async function deleteInterview(id, isCurrent = false) {
   }
 }
 
-function loadFromHistory(item) {
-  // TODO: naviguer vers l'entretien historique
+async function loadFromHistory(item) {
+  try {
+    const { data } = await apiClient.get(`/history/${item.id}`)
+    const interview = data.interview
+    store.startInterview({
+      id: interview.id,
+      jobDescription: interview.job_description,
+      cvFilename: interview.cv_filename,
+      cvData: interview.cv_data || null
+    })
+    messages.value = data.messages || []
+    visibleFeedbacks.value = new Set()
+    // Mettre à jour l'URL sans déclencher de navigation Vue Router
+    window.history.replaceState({}, '', `/interview/${interview.id}`)
+  } catch (error) {
+    console.error('Erreur chargement historique:', error)
+  }
 }
 
 function formatDate(dateStr) {
@@ -502,3 +605,19 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 </script>
+
+<style scoped>
+@keyframes danger-pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.15);
+  }
+}
+
+.timer-danger-glow {
+  animation: danger-pulse 1.5s ease-in-out infinite;
+  border-radius: 0;
+}
+</style>

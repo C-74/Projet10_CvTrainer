@@ -1,4 +1,5 @@
 import { getAllInterviews, getInterviewById, deleteInterview } from '../models/interviewModel.js'
+import { getMessagesByInterviewId } from '../models/messageModel.js'
 
 // Lister tous les entretiens passés
 export async function list(req, res) {
@@ -11,14 +12,20 @@ export async function list(req, res) {
   }
 }
 
-// Récupérer un entretien par ID
+// Récupérer un entretien par ID (avec messages et CV parsé)
 export async function getById(req, res) {
   try {
     const interview = getInterviewById(req.params.id)
     if (!interview) {
       return res.status(404).json({ error: 'Entretien non trouvé.' })
     }
-    res.json({ interview })
+    // Parser cv_data pour le renvoyer en objet
+    if (interview.cv_data) {
+      interview.cv_data = JSON.parse(interview.cv_data)
+    }
+    // Joindre les messages de la conversation
+    const messages = getMessagesByInterviewId(req.params.id)
+    res.json({ interview, messages })
   } catch (error) {
     console.error('Erreur récupération entretien:', error)
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'entretien.' })

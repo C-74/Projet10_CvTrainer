@@ -22,4 +22,7 @@ router.post('/:id/answers', interviewController.submitAnswer)
 // Obtenir le bilan de l'entretien
 router.get('/:id/review', interviewController.getReview)
 
+// Forcer la fin de l'entretien (timer écoulé)
+router.post('/:id/end', interviewController.endInterview)
+
 export default router

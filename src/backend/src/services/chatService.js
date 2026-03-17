@@ -48,3 +48,26 @@ export async function getChatResponse(cvData, jobDescription, conversationHistor
 
   return response.choices[0].message.content
 }
+
+export async function getForceEndResponse(cvData, jobDescription, conversationHistory) {
+  const contextMessage = `DONNÉES DU CV :\n${JSON.stringify(cvData, null, 2)}\n\nDESCRIPTION DU POSTE :\n${jobDescription}`
+
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: contextMessage },
+    ...conversationHistory,
+    {
+      role: 'system',
+      content: `Le temps imparti pour l'entretien est écoulé. Tu dois IMMÉDIATEMENT terminer l'entretien.
+Ne pose plus de question. Génère directement le bilan complet au format JSON entre les balises ---BILAN--- et ---FIN_BILAN--- en te basant sur les réponses déjà données par le candidat, suivi d'un court message de clôture expliquant que le temps est écoulé.`
+    }
+  ]
+
+  const response = await openaiClient.chat.completions.create({
+    messages,
+    temperature: 0.7,
+    max_tokens: 2000
+  })
+
+  return response.choices[0].message.content
+}

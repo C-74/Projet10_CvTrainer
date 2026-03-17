@@ -70,3 +70,34 @@ Prompt : "C'est super bien, maintenant je voudrais améliorer l'esthethisme :
 - Pour le feedback, au lieu d'un message, fait apparaitre un bloc qui prend toute la largeur qui fait un vrai feedback avec une mise en forme (struturation JSON ?) au lieu d'un simple message.
 - Pour les petits feedbacks peandant la conversation, ça serai bien de séparer avec les conversations (un petit bouton pour faire aparaitre et disparaitre le feedback)
 - Aussi ça serai bien que en haut de la page, j'ai une barre de progression de l'entretien"
+
+Résultat : Il m'a bien effectué ce que je voulais (feedbacks cachés sur les réponses, barre de progretion), et avec un UI très bien réalisé, bilan final.
+
+---
+
+Session 6 — Objectif : Mise en place de l'historique des entretiens :
+
+Prompt : "Ok très bien, maintenant je voudrais mettre en place l'historique. On a actuellement à gauche de l'écran un résumé des conversation précédente, mais quand on clique dessus, il ne se passe rien (logique j'avais pas encore implémenter). Ducoup je voudrais simplement qu'on sauvegarde la conversation avec le bilan et feedback afin que la personne puisse y retourner plus tard s'il le souhaite.
+
+De plus l'historique de conversation a gauche, je voudrais qu'elle soit acessible aussi dès qu'on arrive sur la main page"
+
+Problème : Quand je clique sur un élement de l'historique, il ne se passe rien
+
+Solution : J'ai demander a mon agent IA de regarder pourquoi cela ne fonctionnait pas et il a corrigé le problème, maintenant je peux switcher facilement entre les différents entretiens.
+
+Apprentissage : Ne pas oublier de lui spécifier la partie front, je pense qu'il l'a oublié et c'est peut etre pour ça que ça ne fonctionnais pas.
+
+---
+
+Session 7 — Objectif : Mise en place du Timer :
+
+Prompt : "On va passer a la dernière fonctionnalité, comme tu le vois dans le spec.md, il reste une user story, et c'est le mode timer. En gros on peux définir un chronomètre que l'utilisateur peut configurer et que ce chronomètre arrete l'entretien automatiquement et passe directement au bilan si le temps est ecoulé. je voudrais faire en sorte d'ajouter une lueure rouge quand le temps risque bientot d'etre ecoulé (genre 1min avant)"
+
+Problème : Lorsque le timer atteignait 0, le message qui dit que le temps était écoulé aparraissait bien, mais je pouvais quand meme continuer l'entretien. Et le bilan ne s'affichait pas. De plus, quand j'avais essayé de continuer l'entretien, j'ai obtenu une erreur.
+
+Solution : J'ai expliqué à l'agent le problème de timer que j'avais, et il m'a pu corriger la majorité des problèmes, par contre il m'a expliqué que l'erreur que j'ai obtenu pour le message envoyé après le timer, n'est pas provoqué par mon code, mais par un "Time Out" des serveurs OpenAI comme je n'avait pas répondu pendant 5min.
+
+--- Session 8 — Objectif : Documentation :
+
+Prompt : "L'application est super bien, pour la dernière étape, fais un READ.me pour la documentation (expliquant le projet, l'architecture, MCD, schéma de communication avec l'IA..., arbre des dossier). Et aussi commente le code dans le backend et frontend."
+

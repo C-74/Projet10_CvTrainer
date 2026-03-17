@@ -1,7 +1,7 @@
 import { createInterview, getInterviewById, updateCvData } from '../models/interviewModel.js'
 import { createMessage, getMessagesByInterviewId } from '../models/messageModel.js'
 import { extractCvData } from '../services/cvExtractorService.js'
-import { getChatResponse } from '../services/chatService.js'
+import { getChatResponse, getForceEndResponse } from '../services/chatService.js'
 import path from 'path'
 
 // Créer un nouvel entretien
@@ -119,4 +119,27 @@ export async function submitAnswer(req, res) {
 export async function getReview(req, res) {
   // TODO: générer le bilan avec feedback et pistes d'amélioration
   res.json({ message: 'Bilan généré' })
+}
+
+// Forcer la fin de l'entretien (timer écoulé)
+export async function endInterview(req, res) {
+  try {
+    const interviewId = req.params.id
+    const interview = getInterviewById(interviewId)
+    if (!interview) {
+      return res.status(404).json({ error: 'Entretien non trouvé.' })
+    }
+
+    const cvData = interview.cv_data ? JSON.parse(interview.cv_data) : {}
+    const jobDescription = interview.job_description
+    const history = getMessagesByInterviewId(interviewId)
+
+    const aiResponse = await getForceEndResponse(cvData, jobDescription, history)
+    createMessage(interviewId, 'assistant', aiResponse)
+
+    res.json({ role: 'assistant', content: aiResponse })
+  } catch (error) {
+    console.error('Erreur fin forcée entretien:', error)
+    res.status(500).json({ error: 'Erreur lors de la fin forcée de l\'entretien.' })
+  }
 }
