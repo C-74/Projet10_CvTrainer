@@ -1,5 +1,22 @@
+/**
+ * chatService.js — Service de communication avec l'IA (Azure OpenAI GPT-4o)
+ * 
+ * Ce service gère :
+ * - Le prompt système qui définit le comportement du recruteur IA
+ * - L'envoi des messages à l'API OpenAI avec l'historique de conversation
+ * - La fin forcée de l'entretien (timer écoulé) avec génération du bilan
+ * 
+ * Balises utilisées par l'IA :
+ * - [FEEDBACK]...[/FEEDBACK] : retour intermédiaire après chaque réponse
+ * - ---BILAN---...---FIN_BILAN--- : bilan final structuré en JSON
+ */
 import openaiClient from './openaiService.js'
 
+/**
+ * Prompt système définissant le comportement du recruteur IA.
+ * Configure le nombre de questions (5-7), le format des feedbacks,
+ * la génération du bilan JSON, et les règles de conduite.
+ */
 const SYSTEM_PROMPT = `Tu es un recruteur professionnel qui fait passer un entretien d'embauche simulé.
 
 CONTEXTE :
@@ -31,7 +48,17 @@ IMPORTANT :
 - Le JSON du bilan doit être valide et parseable. Pas de commentaires dans le JSON.
 - Respecte STRICTEMENT le format des balises [FEEDBACK][/FEEDBACK] et ---BILAN--- ---FIN_BILAN---.`
 
+/**
+ * Génère une réponse IA pour le chat d'entretien.
+ * Construit le contexte (CV + offre) et envoie l'historique complet à GPT-4o.
+ * 
+ * @param {Object} cvData - Données structurées du CV (JSON)
+ * @param {string} jobDescription - Description du poste visé
+ * @param {Array} conversationHistory - Historique des messages [{role, content}]
+ * @returns {Promise<string>} Réponse de l'IA (texte brut avec balises)
+ */
 export async function getChatResponse(cvData, jobDescription, conversationHistory) {
+  // Construire le contexte avec les données du CV et la description du poste
   const contextMessage = `DONNÉES DU CV :\n${JSON.stringify(cvData, null, 2)}\n\nDESCRIPTION DU POSTE :\n${jobDescription}`
 
   const messages = [
@@ -42,13 +69,23 @@ export async function getChatResponse(cvData, jobDescription, conversationHistor
 
   const response = await openaiClient.chat.completions.create({
     messages,
-    temperature: 0.7,
+    temperature: 0.7,  // Balance entre cohérence et créativité
     max_tokens: 1000
   })
 
   return response.choices[0].message.content
 }
 
+/**
+ * Force la fin de l'entretien en demandant à l'IA de générer immédiatement le bilan.
+ * Utilisé quand le timer est écoulé. Ajoute une instruction système supplémentaire
+ * demandant la production du bilan basé sur les réponses déjà fournies.
+ * 
+ * @param {Object} cvData - Données structurées du CV
+ * @param {string} jobDescription - Description du poste
+ * @param {Array} conversationHistory - Historique des messages
+ * @returns {Promise<string>} Bilan de l'IA (avec balises ---BILAN---/---FIN_BILAN---)
+ */
 export async function getForceEndResponse(cvData, jobDescription, conversationHistory) {
   const contextMessage = `DONNÉES DU CV :\n${JSON.stringify(cvData, null, 2)}\n\nDESCRIPTION DU POSTE :\n${jobDescription}`
 
@@ -66,7 +103,7 @@ Ne pose plus de question. Génère directement le bilan complet au format JSON e
   const response = await openaiClient.chat.completions.create({
     messages,
     temperature: 0.7,
-    max_tokens: 2000
+    max_tokens: 2000  // Plus de tokens pour le bilan complet
   })
 
   return response.choices[0].message.content

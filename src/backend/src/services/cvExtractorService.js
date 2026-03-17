@@ -1,12 +1,27 @@
+/**
+ * cvExtractorService.js — Pipeline d'extraction et structuration de CV PDF
+ * 
+ * Ce service gère le processus en 2 étapes :
+ * 1. Extraction du texte brut depuis un fichier PDF (via pdf-parse)
+ * 2. Structuration des données en JSON via GPT-4o
+ * 
+ * Le JSON résultant contient : identité, formations, expériences,
+ * compétences et centres d'intérêt du candidat.
+ */
 import fs from 'fs'
 import { createRequire } from 'module'
 import openaiClient from './openaiService.js'
 
+// pdf-parse utilise CommonJS, on crée un require() pour l'importer en ESM
 const require = createRequire(import.meta.url)
 const { PDFParse } = require('pdf-parse')
 
 /**
- * Extrait le texte brut d'un fichier PDF
+ * Extrait le texte brut d'un fichier PDF.
+ * Lit le fichier en buffer puis utilise pdf-parse pour extraire le contenu textuel.
+ * 
+ * @param {string} filePath - Chemin absolu vers le fichier PDF
+ * @returns {Promise<string>} Texte brut extrait du PDF
  */
 export async function extractTextFromPdf(filePath) {
   const buffer = fs.readFileSync(filePath)
@@ -15,6 +30,11 @@ export async function extractTextFromPdf(filePath) {
   return result.text
 }
 
+/**
+ * Prompt d'extraction IA : définit le schéma JSON attendu pour structurer
+ * les données du CV. L'IA analyse le texte brut et retourne un objet JSON
+ * respectant strictement cette structure.
+ */
 const CV_EXTRACTION_PROMPT = `Tu es un expert en extraction de données de CV. Analyse le texte brut suivant extrait d'un CV PDF et retourne un objet JSON structuré.
 
 IMPORTANT :
@@ -63,7 +83,11 @@ Le JSON doit respecter EXACTEMENT cette structure :
 }`
 
 /**
- * Structure les données du CV via GPT-4o
+ * Envoie le texte brut du CV à GPT-4o pour le structurer en JSON.
+ * Utilise response_format: json_object pour garantir un JSON valide.
+ * 
+ * @param {string} rawText - Texte brut extrait du PDF
+ * @returns {Promise<Object>} Données structurées du CV
  */
 async function structureCvDataWithAI(rawText) {
   const response = await openaiClient.chat.completions.create({
@@ -71,9 +95,9 @@ async function structureCvDataWithAI(rawText) {
       { role: 'system', content: CV_EXTRACTION_PROMPT },
       { role: 'user', content: rawText }
     ],
-    temperature: 0,
+    temperature: 0,             // Température basse pour une extraction fiable
     max_tokens: 4000,
-    response_format: { type: 'json_object' }
+    response_format: { type: 'json_object' }  // Force le retour JSON valide
   })
 
   const content = response.choices[0].message.content
@@ -81,7 +105,11 @@ async function structureCvDataWithAI(rawText) {
 }
 
 /**
- * Pipeline complet : PDF → texte brut → structuration IA
+ * Pipeline complet d'extraction de CV : PDF → texte brut → JSON structuré.
+ * Combine l'extraction PDF et la structuration IA en une seule fonction.
+ * 
+ * @param {string} filePath - Chemin absolu vers le fichier PDF
+ * @returns {Promise<{rawText: string, structured: Object}>} Texte brut + données structurées
  */
 export async function extractCvData(filePath) {
   const rawText = await extractTextFromPdf(filePath)

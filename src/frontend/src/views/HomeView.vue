@@ -162,6 +162,18 @@
   </div>
 </template>
 
+<!--
+  HomeView.vue — Page d'accueil de l'application
+  
+  Layout en 2 colonnes :
+  - Gauche : Panneau d'historique des entretiens passés (cliquable + supprimable)
+  - Droite : Formulaire de création d'un nouvel entretien
+    - Description du poste (textarea)
+    - Upload du CV en PDF (drag & drop ou clic)
+    - Mode Timer configurable (toggle + sélection de durée)
+    - Bouton de soumission
+-->
+
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -171,14 +183,17 @@ import apiClient from '../services/api.js'
 const router = useRouter()
 const store = useInterviewStore()
 
-const jobDescription = ref('')
-const cvFile = ref(null)
-const fileError = ref('')
-const isSubmitting = ref(false)
-const isDragging = ref(false)
-const history = ref([])
-const timerEnabled = ref(false)
-const timerMinutes = ref(10)
+// === État du formulaire ===
+const jobDescription = ref('')       // Description du poste visé
+const cvFile = ref(null)             // Fichier CV sélectionné (objet File)
+const fileError = ref('')            // Message d'erreur sur le fichier
+const isSubmitting = ref(false)      // Formulaire en cours de soumission
+const isDragging = ref(false)        // État visuel du drag & drop
+const history = ref([])              // Liste des entretiens passés
+
+// === État du timer ===
+const timerEnabled = ref(false)      // Timer activé dans le formulaire
+const timerMinutes = ref(10)         // Durée sélectionnée en minutes
 const timerOptions = [
   { label: '5 min', value: 5 },
   { label: '10 min', value: 10 },
@@ -187,15 +202,16 @@ const timerOptions = [
   { label: '30 min', value: 30 }
 ]
 
+// Le formulaire est soumissible seulement si description ET fichier sont remplis
 const canSubmit = computed(() => jobDescription.value.trim() && cvFile.value)
 
-// Charger l'historique au montage
+// Charger l'historique des entretiens dès le montage du composant
 onMounted(async () => {
   try {
     const { data } = await apiClient.get('/history')
     history.value = data.interviews || []
   } catch {
-    // L'historique sera vide
+    // En cas d'erreur, l'historique reste vide
   }
 })
 
@@ -237,6 +253,11 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/**
+ * Charger un entretien depuis l'historique.
+ * Récupère les données complètes via l'API, met à jour le store Pinia,
+ * puis navigue vers la page d'entretien.
+ */
 async function loadFromHistory(item) {
   try {
     const { data } = await apiClient.get(`/history/${item.id}`)
@@ -262,19 +283,29 @@ async function deleteInterview(id) {
   }
 }
 
+/**
+ * Soumettre le formulaire pour créer un nouvel entretien.
+ * 1. Upload le CV + description via l'API (multipart/form-data)
+ * 2. Initialise le store Pinia avec les données de l'entretien + timer
+ * 3. Navigue vers la page de chat (/interview/:id)
+ */
 async function handleSubmit() {
   if (!canSubmit.value || isSubmitting.value) return
   isSubmitting.value = true
 
   try {
+    // Construire le FormData pour l'upload multipart
     const formData = new FormData()
     formData.append('cv', cvFile.value)
     formData.append('jobDescription', jobDescription.value)
 
+    // Appel API : créer l'entretien (le backend extrait et structure le CV)
     const { data } = await apiClient.post('/interviews', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 
+    // Initialiser le store avec les données de l'entretien
+    // Si le timer est activé, convertir les minutes en secondes
     store.startInterview({
       id: data.id,
       jobDescription: jobDescription.value,
@@ -283,6 +314,7 @@ async function handleSubmit() {
       timer: timerEnabled.value ? timerMinutes.value * 60 : 0
     })
 
+    // Naviguer vers la page de chat
     router.push({ name: 'interview', params: { id: data.id } })
   } catch (error) {
     console.error('Erreur lors de la création de l\'entretien:', error)
