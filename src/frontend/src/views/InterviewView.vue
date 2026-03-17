@@ -26,7 +26,7 @@
 
         <!-- Anciens entretiens -->
         <div
-          v-for="item in history"
+          v-for="item in filteredHistory"
           :key="item.id"
           class="group relative p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition border border-transparent hover:border-gray-200"
           @click="loadFromHistory(item)"
@@ -43,27 +43,40 @@
           <p class="text-xs text-gray-400 mt-1">{{ formatDate(item.created_at) }}</p>
         </div>
 
-        <p v-if="history.length === 0" class="text-xs text-gray-400 text-center py-4">
+        <p v-if="filteredHistory.length === 0" class="text-xs text-gray-400 text-center py-4">
           Aucun historique pour le moment
         </p>
       </div>
     </aside>
 
     <!-- ============ PANNEAU CENTRAL : Chat ============ -->
-    <section class="flex-1 flex flex-col min-w-0">
+    <section class="flex-1 flex flex-col min-w-0" :class="{ 'timer-danger-glow': isTimerDanger && !isInterviewFinished }">
 
       <!-- Barre de progression -->
       <div class="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-xs font-medium text-gray-500">Progression de l'entretien</span>
-          <span class="text-xs font-semibold" :class="isInterviewFinished ? 'text-green-600' : 'text-indigo-600'">
-            {{ isInterviewFinished ? 'Terminé' : `Question ${questionsAnswered} / ~${estimatedTotal}` }}
-          </span>
+          <div class="flex items-center gap-3">
+            <!-- Timer countdown -->
+            <span
+              v-if="store.isTimerEnabled && !isInterviewFinished"
+              class="text-xs font-mono font-bold px-2 py-0.5 rounded-md transition-colors"
+              :class="isTimerDanger ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-gray-100 text-gray-700'"
+            >
+              ⏱ {{ formatTime(remainingTime) }}
+            </span>
+            <span v-else-if="store.isTimerEnabled && isInterviewFinished" class="text-xs font-medium text-gray-400">
+              ⏱ Terminé
+            </span>
+            <span class="text-xs font-semibold" :class="isInterviewFinished ? 'text-green-600' : 'text-indigo-600'">
+              {{ isInterviewFinished ? 'Terminé' : `Question ${questionsAnswered} / ~${estimatedTotal}` }}
+            </span>
+          </div>
         </div>
         <div class="w-full bg-gray-100 rounded-full h-2">
           <div
             class="h-2 rounded-full transition-all duration-700 ease-out"
-            :class="isInterviewFinished ? 'bg-green-500' : 'bg-indigo-500'"
+            :class="isInterviewFinished ? 'bg-green-500' : isTimerDanger ? 'bg-red-500' : 'bg-indigo-500'"
             :style="{ width: progress + '%' }"
           ></div>
         </div>
@@ -203,8 +216,8 @@
         </div>
       </div>
 
-      <!-- Zone de saisie (masquée quand l'entretien est terminé) -->
-      <div v-if="!isInterviewFinished" class="border-t border-gray-200 bg-white p-4">
+      <!-- Zone de saisie (masquée quand l'entretien est terminé ou timer écoulé) -->
+      <div v-if="!isInterviewFinished && !timerExpired" class="border-t border-gray-200 bg-white p-4">
         <form @submit.prevent="sendMessage" class="flex items-end gap-3">
           <textarea
             v-model="userInput"
@@ -344,42 +357,145 @@
   </div>
 </template>
 
+<!--
+  InterviewView.vue — Page principale de l'entretien
+  
+  Layout en 3 panneaux :
+  - Gauche : Historique des entretiens (sidebar, avec entretien actif en cours)
+  - Centre : Zone de chat (progression, messages, barre de saisie, timer)
+  - Droite : Description du poste + aperçu du CV structuré
+  
+  Fonctionnalités :
+  - Chat conversationnel avec l'IA
+  - Feedbacks intermédiaires masquables après chaque réponse
+  - Bilan final structuré (score, points forts, améliorations, réponses suggérées)
+  - Timer configurable avec countdown, lueur rouge à 1 min, fin automatique
+  - Chargement d'entretiens passés depuis l'historique
+-->
+
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useInterviewStore } from '../stores/interviewStore.js'
 import apiClient from '../services/api.js'
 
 const route = useRoute()
+const router = useRouter()
 const store = useInterviewStore()
 
+// === Données réactives du CV (depuis le store Pinia) ===
 const cvData = computed(() => store.currentInterview?.cvData || null)
 
-const messages = ref([])
-const userInput = ref('')
-const isAiTyping = ref(false)
-const history = ref([])
-const chatContainer = ref(null)
-const inputField = ref(null)
-const visibleFeedbacks = ref(new Set())
-const estimatedTotal = 6
+// === État de la conversation ===
+const messages = ref([])               // Messages de la conversation [{role, content}]
+const userInput = ref('')              // Texte en cours de saisie
+const isAiTyping = ref(false)          // L'IA est en train de répondre
+const history = ref([])                // Liste des entretiens passés (sidebar)
+const chatContainer = ref(null)        // Ref du conteneur de chat (pour auto-scroll)
+const inputField = ref(null)           // Ref du textarea (pour auto-resize)
+const visibleFeedbacks = ref(new Set()) // Set des index de feedbacks visibles
+const estimatedTotal = 6               // Nombre estimé de questions (5-7, on prend 6)
 
+// === Timer ===
+const remainingTime = ref(store.timerRemaining || 0)  // Temps restant (repris du store si on revient)
+let timerInterval = null                               // Référence de l'intervalle setInterval
+const isTimerDanger = computed(() => store.isTimerEnabled && remainingTime.value > 0 && remainingTime.value <= 60)
+const timerExpired = ref(false)                        // True quand le timer a atteint 0
+
+/** Formater les secondes en MM:SS */
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+/** Démarrer le countdown (appelé au montage si timer actif) */
+function startTimer() {
+  if (!store.isTimerEnabled || remainingTime.value <= 0) return
+  stopTimer() // Sécurité : nettoyer un éventuel ancien interval
+  timerInterval = setInterval(() => {
+    if (remainingTime.value > 0) {
+      remainingTime.value--
+      store.saveTimerRemaining(remainingTime.value) // Persister dans le store
+      if (remainingTime.value === 0) {
+        stopTimer()
+        handleTimerEnd() // Déclencher la fin forcée
+      }
+    }
+  }, 1000)
+}
+
+/** Arrêter le countdown et libérer l'intervalle */
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
+/**
+ * Gérer la fin du timer : appeler le backend pour forcer le bilan.
+ * Masque la barre de saisie (timerExpired = true) et affiche le bilan.
+ */
+async function handleTimerEnd() {
+  if (isInterviewFinished.value) return
+  timerExpired.value = true   // Masquer la barre de saisie immédiatement
+  isAiTyping.value = true
+  try {
+    const { data } = await apiClient.post(`/interviews/${store.currentInterview.id}/end`)
+    messages.value.push({ role: data.role, content: data.content })
+  } catch (error) {
+    messages.value.push({
+      role: 'assistant',
+      content: 'Le temps est écoulé. Désolé, une erreur est survenue lors de la génération du bilan.'
+    })
+  } finally {
+    isAiTyping.value = false
+  }
+}
+
+onUnmounted(() => {
+  stopTimer()
+  if (store.isTimerEnabled) {
+    store.saveTimerRemaining(remainingTime.value)
+  }
+})
+
+// === Computed : Historique filtré (exclut l'entretien en cours) ===
+const filteredHistory = computed(() => {
+  const currentId = store.currentInterview?.id
+  return history.value.filter(h => h.id !== currentId)
+})
+
+// === Computed : Détecte si l'entretien est terminé (bilan reçu) ===
 const isInterviewFinished = computed(() => {
   return messages.value.some(m => m.content.includes('---FIN_BILAN---'))
 })
 
+// Nombre de réponses de l'utilisateur (pour la barre de progression)
 const questionsAnswered = computed(() => messages.value.filter(m => m.role === 'user').length)
 
+// Pourcentage de progression (5% min, 95% max, 100% si terminé)
 const progress = computed(() => {
   if (isInterviewFinished.value) return 100
   if (questionsAnswered.value === 0) return 5
   return Math.min(95, Math.round((questionsAnswered.value / estimatedTotal) * 100))
 })
 
+/**
+ * Computed : Traite les messages bruts pour en extraire :
+ * - Les feedbacks intermédiaires (balises [FEEDBACK]...[/FEEDBACK])
+ * - Le bilan final (balises ---BILAN---...---FIN_BILAN---)
+ * - Les messages simples (user ou assistant sans balises)
+ * 
+ * Retourne un tableau enrichi avec le type de chaque message.
+ */
 const processedMessages = computed(() => {
   return messages.value.map((msg) => {
+    // Messages utilisateur : pas de traitement
     if (msg.role === 'user') return { ...msg, type: 'user' }
 
+    // Vérifier si le message contient le bilan final
     const bilanMatch = msg.content.match(/---BILAN---([\s\S]*?)---FIN_BILAN---/)
     if (bilanMatch) {
       let bilanData = null
@@ -388,6 +504,7 @@ const processedMessages = computed(() => {
       return { ...msg, type: 'bilan', bilanData, bilanRaw: bilanMatch[1].trim(), closingMessage }
     }
 
+    // Vérifier si le message contient un feedback intermédiaire
     const feedbackMatch = msg.content.match(/\[FEEDBACK\]([\s\S]*?)\[\/FEEDBACK\]/)
     if (feedbackMatch) {
       const feedback = feedbackMatch[1].trim()
@@ -395,6 +512,7 @@ const processedMessages = computed(() => {
       return { ...msg, type: 'with-feedback', feedback, question }
     }
 
+    // Message assistant simple (sans balises)
     return { ...msg, type: 'assistant' }
   })
 })
@@ -437,6 +555,12 @@ onMounted(async () => {
       })
     }
   }
+
+  // Démarrer le timer si actif et entretien pas terminé
+  if (store.isTimerEnabled && !isInterviewFinished.value) {
+    remainingTime.value = store.timerRemaining || store.timerDuration
+    startTimer()
+  }
 })
 
 // Auto-scroll vers le bas à chaque nouveau message
@@ -447,12 +571,23 @@ watch(messages, async () => {
   }
 }, { deep: true })
 
+// Arrêter le timer si l'entretien est terminé
+watch(isInterviewFinished, (finished) => {
+  if (finished) stopTimer()
+})
+
 function autoResize(event) {
   const el = event.target
   el.style.height = 'auto'
   el.style.height = Math.min(el.scrollHeight, 120) + 'px'
 }
 
+/**
+ * Envoyer un message à l'IA.
+ * 1. Ajoute le message utilisateur localement
+ * 2. Envoie au backend via POST /interviews/:id/chat
+ * 3. Reçoit la réponse IA et l'ajoute aux messages
+ */
 async function sendMessage() {
   const text = userInput.value.trim()
   if (!text || isAiTyping.value) return
@@ -480,6 +615,10 @@ async function sendMessage() {
   }
 }
 
+/**
+ * Supprimer un entretien depuis la sidebar.
+ * Si c'est l'entretien en cours, réinitialise le store.
+ */
 async function deleteInterview(id, isCurrent = false) {
   try {
     await apiClient.delete(`/history/${id}`)
@@ -492,13 +631,50 @@ async function deleteInterview(id, isCurrent = false) {
   }
 }
 
-function loadFromHistory(item) {
-  // TODO: naviguer vers l'entretien historique
+/**
+ * Charger un entretien passé depuis la sidebar (sans navigation Vue Router).
+ * Met à jour le store, les messages et l'URL directement pour éviter
+ * un re-montage du composant.
+ */
+async function loadFromHistory(item) {
+  try {
+    const { data } = await apiClient.get(`/history/${item.id}`)
+    const interview = data.interview
+    store.startInterview({
+      id: interview.id,
+      jobDescription: interview.job_description,
+      cvFilename: interview.cv_filename,
+      cvData: interview.cv_data || null
+    })
+    messages.value = data.messages || []
+    visibleFeedbacks.value = new Set()
+    // Mettre à jour l'URL sans déclencher de navigation Vue Router
+    window.history.replaceState({}, '', `/interview/${interview.id}`)
+  } catch (error) {
+    console.error('Erreur chargement historique:', error)
+  }
 }
 
+/** Formater une date ISO en format français lisible (ex: "17 mars 2026") */
 function formatDate(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 </script>
+
+<style scoped>
+@keyframes danger-pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.15);
+  }
+}
+
+.timer-danger-glow {
+  animation: danger-pulse 1.5s ease-in-out infinite;
+  border-radius: 0;
+}
+</style>
